@@ -49,3 +49,4 @@
 | 2026-04-11 | DataConnector mock service + useTimingData hook |
 | 2026-04-11 | useSyncEngine, keyboard shortcuts, localStorage persistence |
 | 2026-04-14 | Fixed CI build: updated Node.js 18 → 20 in GitHub Actions workflow (vite v8 requires Node 20.19+) |
+| 2026-04-14 | Smoke tests: vitest + @testing-library/react, 14 passing tests (dashboard render, layout toggle, seek controls, keyboard shortcuts) |

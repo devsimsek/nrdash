@@ -46,4 +46,4 @@
   - Live / VOD mode indicator
 - [x] Keyboard shortcuts (Space = play/pause, ← / → = ±10 s seek)
 - [x] Persist offset and last stream URLs to `localStorage`
-- [ ] End-to-end smoke test: open dashboard, toggle layout, seek both streams
+- [x] End-to-end smoke test: open dashboard, toggle layout, seek both streams
