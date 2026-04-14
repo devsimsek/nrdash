@@ -39,6 +39,15 @@ export const useStore = create(
       // ── Flags ──────────────────────────────────────────────────────
       flagState: 'GREEN',
       setFlagState: (f) => set({ flagState: f }),
+
+      // ── Data status ────────────────────────────────────────────────
+      // 'connecting' | 'live' | 'offline' | 'demo'
+      dataStatus: 'connecting',
+      setDataStatus: (s) => set({ dataStatus: s }),
+
+      // ── Demo mode ──────────────────────────────────────────────────
+      isDemoMode: false,
+      setDemoMode: (v) => set({ isDemoMode: v }),
     }),
     {
       name: STORAGE_KEY,
