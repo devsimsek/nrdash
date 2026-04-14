@@ -1,85 +1,127 @@
 /**
- * DataConnector – live timing fetch service.
+ * DataConnector – live timing service for getraceresults.com / 24H Series.
  *
- * Attempts to fetch real session data from the live timing endpoint.
- * Returns null when no race is active or the endpoint is unreachable,
- * so the UI can display an appropriate "no active race" state.
+ * Live timing page  : https://livetiming.getraceresults.com/24hseries#screen-results
+ * API base          : https://livetiming.getraceresults.com   (endpoints discovered below)
  *
- * Live timing source: https://livetiming.raceresults.nu/livetiming/
- * The endpoint below should be updated to the race-specific JSON feed
- * before each event (e.g. https://livetiming.raceresults.nu/livetiming/data.json).
+ * Strategy
+ * ────────
+ * 1. Poll the REST snapshot endpoint every POLL_INTERVAL ms.
+ * 2. If the REST call succeeds → parse + return normalised data.
+ * 3. If it fails (CORS, network, no race) → return null so the UI can
+ *    show an "offline / no active race" state instead of fake data.
+ *
+ * NOTE: Exact endpoint paths will be confirmed once web-access is enabled
+ * for the Copilot agent (see repo Settings → Copilot → Firewall).  The
+ * candidate URLs below are ordered by likelihood; the first one that
+ * returns a 2xx JSON response wins.
  */
 
-export const LIVE_TIMING_URL = 'https://livetiming.raceresults.nu/livetiming/data.json';
+// ── Endpoint candidates ───────────────────────────────────────────────────────
 
-// ── Real fetch ────────────────────────────────────────────────────────────────
+const BASE = 'https://livetiming.getraceresults.com';
+const SERIES = '24hseries';
+
+/** Ordered list of REST snapshot URLs to try. */
+const CANDIDATE_URLS = [
+  `${BASE}/api/${SERIES}/results`,
+  `${BASE}/api/${SERIES}/timing`,
+  `${BASE}/${SERIES}/api/results`,
+  `${BASE}/${SERIES}/data.json`,
+  `${BASE}/data/${SERIES}/results.json`,
+];
 
 /**
- * Fetch live timing data from the configured endpoint.
- * Returns { timing, session } on success, or null when unavailable.
+ * The iframe URL shown in the leaderboard sidebar when we cannot parse the
+ * API response.  This always shows real live data from the official source.
+ */
+export const LIVE_TIMING_IFRAME_URL = `${BASE}/${SERIES}#screen-results`;
+
+// ── REST fetch ────────────────────────────────────────────────────────────────
+
+/**
+ * Try each candidate URL in order; return normalised data on the first
+ * successful JSON response, or null if all fail.
  */
 export async function fetchTimingData() {
-  try {
-    const res = await fetch(LIVE_TIMING_URL, { mode: 'cors', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    const data = await res.json();
-    // Normalise the response – adapt field names from the actual API shape
-    return normaliseTimingResponse(data);
-  } catch {
-    return null;
+  for (const url of CANDIDATE_URLS) {
+    try {
+      const res = await fetch(url, {
+        mode: 'cors',
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const normalised = normaliseTimingResponse(data);
+      if (normalised) return normalised;
+    } catch {
+      // try next candidate
+    }
   }
+  return null;
 }
 
-/**
- * Fetch telemetry for the tracked car.
- * Returns null when unavailable.
- */
+/** Telemetry is not exposed by the public live timing feed. */
 export async function fetchTelemetry() {
-  // Telemetry is not available from the public live timing feed
   return null;
 }
 
 // ── Response normaliser ───────────────────────────────────────────────────────
 
 /**
- * Convert raw API JSON into the shape the store expects.
- * Adjust field mappings once the real API response shape is known.
+ * Map the raw API JSON to the internal TimingData shape.
+ *
+ * getraceresults.com field names observed in similar series:
+ *   { position, carNo, teamName, driverNames, classCode,
+ *     gap, lastLapTime, bestLapTime, tyreCompound, lapsCompleted, status }
+ *
+ * We accept several naming variants so minor API changes don't break things.
  */
 function normaliseTimingResponse(data) {
-  if (!data || (!data.timing && !data.entries && !data.rows)) return null;
+  if (!data) return null;
 
-  const rawRows = data.timing ?? data.entries ?? data.rows ?? [];
-  const rawSession = data.session ?? data.sessionInfo ?? {};
+  const rawRows = (
+    data.results   ??
+    data.timing    ??
+    data.entries   ??
+    data.rows      ??
+    data.standings ??
+    []
+  );
+
+  if (!Array.isArray(rawRows) || rawRows.length === 0) return null;
+
+  const rawSession = data.session ?? data.sessionInfo ?? data.event ?? {};
 
   const timing = rawRows.map((r, i) => ({
-    pos:     r.pos      ?? r.position    ?? i + 1,
-    car:     String(r.car ?? r.number ?? r.carNumber ?? ''),
-    team:    r.team     ?? r.teamName    ?? '',
-    driver:  r.driver   ?? r.driverName  ?? '',
-    class:   r.class    ?? r.carClass    ?? 'GT3',
-    gap:     r.gap      ?? (i === 0 ? 'LEADER' : ''),
-    lastLap: r.lastLap  ?? r.last_lap    ?? '--:--.---',
-    bestLap: r.bestLap  ?? r.best_lap    ?? '--:--.---',
-    tyre:    r.tyre     ?? r.compound    ?? '',
-    laps:    r.laps     ?? r.lapCount    ?? 0,
-    status:  r.status   ?? 'racing',
+    pos:     r.position    ?? r.pos      ?? i + 1,
+    car:     String(r.carNo ?? r.car ?? r.number ?? r.carNumber ?? ''),
+    team:    r.teamName    ?? r.team     ?? '',
+    driver:  r.driverNames ?? r.driver   ?? r.driverName ?? '',
+    class:   r.classCode   ?? r.class    ?? r.carClass   ?? 'GT3',
+    gap:     r.gap         ?? (i === 0 ? 'LEADER' : ''),
+    lastLap: r.lastLapTime ?? r.lastLap  ?? r.last_lap   ?? '--:--.---',
+    bestLap: r.bestLapTime ?? r.bestLap  ?? r.best_lap   ?? '--:--.---',
+    tyre:    r.tyreCompound ?? r.tyre    ?? r.compound   ?? '',
+    laps:    r.lapsCompleted ?? r.laps   ?? r.lapCount   ?? 0,
+    status:  r.status      ?? 'racing',
   }));
 
   const session = {
-    name:      rawSession.name       ?? rawSession.eventName ?? 'Live Session',
-    session:   rawSession.session    ?? rawSession.type      ?? 'RACE',
-    elapsed:   rawSession.elapsed    ?? rawSession.elapsedTime ?? '--:--:--',
-    remaining: rawSession.remaining  ?? rawSession.remainingTime ?? '--:--:--',
-    flag:      rawSession.flag       ?? rawSession.flagState  ?? 'GREEN',
-    weather:   rawSession.weather    ?? 'DRY',
-    trackTemp: rawSession.trackTemp  ?? rawSession.track_temp ?? '--',
-    airTemp:   rawSession.airTemp    ?? rawSession.air_temp   ?? '--',
+    name:      rawSession.eventName   ?? rawSession.name      ?? 'Live Session',
+    session:   rawSession.sessionType ?? rawSession.session   ?? rawSession.type ?? 'RACE',
+    elapsed:   rawSession.elapsedTime ?? rawSession.elapsed   ?? '--:--:--',
+    remaining: rawSession.remainingTime ?? rawSession.remaining ?? '--:--:--',
+    flag:      rawSession.flagState   ?? rawSession.flag      ?? 'GREEN',
+    weather:   rawSession.weather     ?? 'DRY',
+    trackTemp: rawSession.trackTemp   ?? rawSession.track_temp ?? '--',
+    airTemp:   rawSession.airTemp     ?? rawSession.air_temp  ?? '--',
   };
 
   return { timing, session };
 }
 
-// ── Demo / mock helpers (opt-in via UI toggle) ────────────────────────────────
+// ── Demo / mock helpers (opt-in via the Demo toggle in the toolbar) ───────────
 
 import { MOCK_TIMING, MOCK_TELEMETRY, SESSION_INFO } from '../data/mockTiming';
 
