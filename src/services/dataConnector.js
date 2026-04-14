@@ -179,8 +179,13 @@ export function createTimingConnector({ onData, onStatus, onFlag }) {
   }
 
   function handleHeatState(data) {
-    if (!data) return;
-    Object.assign(heat, data);
+    if (!data || typeof data !== 'object') return;
+    // Iterate own keys only, excluding __proto__ to prevent prototype pollution
+    for (const key of Object.keys(data)) {
+      if (key !== '__proto__' && key !== 'constructor') {
+        heat[key] = data[key];
+      }
+    }
     if (data.f !== undefined && onFlag) {
       onFlag(FLAG_MAP[String(data.f)] ?? 'GREEN');
     }
@@ -205,8 +210,8 @@ export function createTimingConnector({ onData, onStatus, onFlag }) {
         try {
           const json     = LZString.decompressFromUTF16(payload);
           const updates  = JSON.parse(json);
-          // Dispatch in reverse (mirrors the original JS while(C--) loop)
-          for (let i = updates.length - 1; i >= 0; i--) {
+          // Dispatch layout before results so r_i can rely on up-to-date columns
+          for (let i = 0; i < updates.length; i++) {
             dispatch(updates[i][0], updates[i][1]);
           }
         } catch (err) {
