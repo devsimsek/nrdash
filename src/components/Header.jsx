@@ -10,9 +10,24 @@ const FLAG_COLORS = {
   CHEQUERED: 'bg-gradient-to-r from-black via-white to-black',
 };
 
+const STATUS_BADGE = {
+  live:       'text-nr-green',
+  demo:       'text-yellow-400',
+  offline:    'text-gray-500',
+  connecting: 'text-gray-500 animate-pulse',
+};
+
+const STATUS_LABEL = {
+  live:       'LIVE',
+  demo:       'DEMO',
+  offline:    'OFFLINE',
+  connecting: 'CONNECTING…',
+};
+
 export default function Header() {
   const sessionInfo = useStore((s) => s.sessionInfo);
   const flagState   = useStore((s) => s.flagState);
+  const dataStatus  = useStore((s) => s.dataStatus);
 
   const info = sessionInfo ?? {
     name: 'ADAC TOTAL 24h-Rennen Nürburgring',
@@ -32,7 +47,12 @@ export default function Header() {
         {/* Flag indicator */}
         <span className={`inline-block w-3 h-5 rounded-sm ${FLAG_COLORS[info.flag] ?? 'bg-gray-500'}`} title={`${info.flag} flag`} />
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-widest leading-none">{info.session}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-400 uppercase tracking-widest leading-none">{info.session}</p>
+            <span className={`text-[9px] font-bold font-mono uppercase ${STATUS_BADGE[dataStatus] ?? 'text-gray-500'}`}>
+              {STATUS_LABEL[dataStatus] ?? dataStatus}
+            </span>
+          </div>
           <h1 className="text-sm font-bold text-white leading-tight truncate max-w-xs">{info.name}</h1>
         </div>
       </div>

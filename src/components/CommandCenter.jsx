@@ -25,8 +25,22 @@ export default function CommandCenter() {
   const primaryVideoId    = useStore((s) => s.primaryVideoId);
   const secondaryVideoId  = useStore((s) => s.secondaryVideoId);
   const secondaryOffset   = useStore((s) => s.secondaryOffset);
+  const isDemoMode        = useStore((s) => s.isDemoMode);
+  const setDemoMode       = useStore((s) => s.setDemoMode);
+  const setTimingData     = useStore((s) => s.setTimingData);
+  const setTelemetry      = useStore((s) => s.setTelemetry);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  function toggleDemo() {
+    const next = !isDemoMode;
+    setDemoMode(next);
+    if (!next) {
+      // Leaving demo mode – clear rows so the offline state shows immediately
+      setTimingData({ timing: [], session: null });
+      setTelemetry(null);
+    }
+  }
 
   // Sync engine
   const { primaryRef, secondaryRef, play, pause, seekTo, togglePlayPause, isPlaying } = useSyncEngine();
@@ -99,6 +113,17 @@ export default function CommandCenter() {
         </div>
 
         <div className="flex-1" />
+
+        {/* Demo mode toggle */}
+        <button
+          onClick={toggleDemo}
+          title={isDemoMode ? 'Exit demo mode' : 'Load demo data'}
+          className={`px-3 py-1 text-xs rounded font-mono transition-colors
+            ${isDemoMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/40' : 'bg-nr-border text-gray-400 hover:bg-gray-700'}
+          `}
+        >
+          {isDemoMode ? '⏹ Demo' : '▷ Demo'}
+        </button>
 
         {/* Settings */}
         <button

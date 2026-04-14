@@ -45,8 +45,9 @@ beforeEach(() => {
 // 1. Dashboard renders
 // ---------------------------------------------------------------------------
 describe('Dashboard renders', () => {
-  it('shows the race header', () => {
+  it('shows the race header name', () => {
     render(<App />);
+    // Header always shows the event name (from sessionInfo fallback or live data)
     expect(screen.getByText(/24h-Rennen/i)).toBeInTheDocument();
   });
 
@@ -62,10 +63,21 @@ describe('Dashboard renders', () => {
     expect(screen.getByText(/Single/i)).toBeInTheDocument();
   });
 
+  it('shows the demo toggle button', () => {
+    render(<App />);
+    expect(screen.getByTitle(/demo/i)).toBeInTheDocument();
+  });
+
   it('renders at least one YouTube player stub', () => {
     render(<App />);
     const players = screen.getAllByTestId('youtube-player');
     expect(players.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows no-race state when not in demo mode', () => {
+    render(<App />);
+    const matches = screen.getAllByText(/no active race|connecting/i);
+    expect(matches.length).toBeGreaterThanOrEqual(1);
   });
 });
 
