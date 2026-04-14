@@ -21,6 +21,7 @@ const StreamPlayer = forwardRef(function StreamPlayer({ videoId, label, onReady,
       modestbranding: 1,
       rel: 0,
       iv_load_policy: 3,
+      origin: window.location.origin,
     },
   };
 
